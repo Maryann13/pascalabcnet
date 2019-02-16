@@ -17,7 +17,7 @@ using System.Text;
 
 namespace PascalABCCompiler.SyntaxTree
 {
-    public enum SymKind { var, field, param, procname, funcname, classname, recordname, interfacename };
+    public enum SymKind { var, constant, field, param, procname, funcname, classname, recordname, interfacename };
 
     [Flags]
     public enum Attributes { class_attr = 1, varparam_attr = 2};
@@ -27,7 +27,7 @@ namespace PascalABCCompiler.SyntaxTree
         public override string ToString()
         {
             string typepart = "";
-            if (SK == SymKind.var || SK == SymKind.field || SK == SymKind.field || SK == SymKind.param)
+            if (SK == SymKind.var || SK == SymKind.field || SK == SymKind.constant || SK == SymKind.param)
                 typepart = ": " + (Td == null ? "NOTYPE" : Td.ToString());
             typepart = typepart.Replace("PascalABCCompiler.SyntaxTree.", "");
             var attrstr = Attr != 0 ? "[" + Attr.ToString() + "]" : "";
@@ -105,6 +105,12 @@ namespace PascalABCCompiler.SyntaxTree
     public class CaseScopeSyntax : LightScopeSyntax { } // statement_list
     public class ForScopeSyntax : LightScopeSyntax { } // statement_list
     public class ForeachScopeSyntax : LightScopeSyntax { } // statement_list
+    public class IfScopeSyntax : LightScopeSyntax { } // statement_list
+    public class WhileScopeSyntax : LightScopeSyntax { } // statement_list
+    public class LoopScopeSyntax : LightScopeSyntax { } // statement_list
+    public class WithScopeSyntax : LightScopeSyntax { } // statement_list
+    public class LockScopeSyntax : LightScopeSyntax { } // statement_list
+    public class SwitchScopeSyntax : LightScopeSyntax { } // statement_list
     public class LambdaScopeSyntax : ScopeSyntax { }
 }
 

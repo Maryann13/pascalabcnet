@@ -38,11 +38,17 @@ namespace PascalABCCompiler.SyntaxTree
                     break;
                 case procedure_definition p:
                     var name = p.proc_header?.name?.meth_name;
+                    if (p.proc_header is constructor && name == null)
+                        name = "Create";
                     var attr = p.proc_header.class_keyword ? Attributes.class_attr : 0;
-                    if (p.proc_header is function_header && name != null)
-                        AddSymbol(name, SymKind.funcname,null, attr);
-                    else AddSymbol(name, SymKind.procname, null, attr);
+                    var sk = p.proc_header is function_header ?
+                        SymKind.funcname : SymKind.procname;
+                    if (name != null)
+                        AddSymbol(name, sk, null, attr);
                     t = new ProcScopeSyntax(name);
+                    break;
+                case const_definition p:
+                    AddSymbol(p.const_name?.name, SymKind.constant);
                     break;
                 case formal_parameters p:
                     t = new ParamsScopeSyntax();
@@ -59,6 +65,21 @@ namespace PascalABCCompiler.SyntaxTree
                 /*case repeat_node p: // не надо т.к. это StatListScope
                     t = new RepeatScopeSyntax();
                     break;*/
+                case if_node p:
+                    t = new IfScopeSyntax();
+                    break;
+                case while_node p:
+                    t = new WhileScopeSyntax();
+                    break;
+                case loop_stmt p:
+                    t = new LoopScopeSyntax();
+                    break;
+                case with_statement p:
+                    t = new WithScopeSyntax();
+                    break;
+                case lock_stmt p:
+                    t = new LockScopeSyntax();
+                    break;
                 case case_node p:
                     t = new CaseScopeSyntax();
                     break;
@@ -110,8 +131,13 @@ namespace PascalABCCompiler.SyntaxTree
                 case statement_list stl:
                 case for_node f:
                 case foreach_stmt fe:
+                case if_node ifn:
+                case while_node w:
+                case loop_stmt l:
+                case with_statement ws:
+                case lock_stmt ls:
                 case class_definition cd:
-                case record_type rt:
+                //case record_type rt:
                 case function_lambda_definition fld:
                 //case repeat_node rep:
                 case case_node cas:
@@ -125,7 +151,8 @@ namespace PascalABCCompiler.SyntaxTree
             if (vd == null || vd.vars == null || vd.vars.list == null)
                 return;
             var type = vd.vars_type;
-            var q = vd.vars.list.Select(x => new SymInfoSyntax(x, SymKind.var, type, attr));
+            var sk = Current is ClassScopeSyntax ? SymKind.field : SymKind.var;
+            var q = vd.vars.list.Select(x => new SymInfoSyntax(x, sk, type, attr));
             if (q.Count() > 0)
                 Current.Symbols.AddRange(q);
             base.visit(vd);

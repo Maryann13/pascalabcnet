@@ -47,6 +47,8 @@ namespace PascalABCCompiler.SyntaxTree
                 OutputString(s.ToString()+": ");
                 if (s.Symbols.Count > 0)
                     OutputlnString(string.Join(", ", s.Symbols.Select(x => x.ToString())));
+                else
+                    OutputlnString();
             }
             else
             {
