@@ -610,10 +610,6 @@ label_name
         { 
 			$$ = new ident($1.ToString(), @$);
 		}
-    | tkFloat                              
-        { 
-			$$ = new ident($1.ToString(), @$);  
-		}
     | identifier
 		{ 
 			$$ = $1; 
@@ -1026,10 +1022,10 @@ array_const
         { 
 			$$ = new array_const($2 as expression_list, @$); 
 		}
-    | tkRoundOpen record_const tkRoundClose    
-        { $$ = $2; }
-    | tkRoundOpen array_const tkRoundClose     
-        { $$ = $2; }
+//    | tkRoundOpen record_const tkRoundClose    
+//        { $$ = $2; }
+//    | tkRoundOpen array_const tkRoundClose     
+//        { $$ = $2; }
     ;
 
 typed_const_list
@@ -1174,6 +1170,20 @@ type_decl_type
 
 simple_type_question
 	: simple_type tkQuestion
+		{
+            if (parsertools.build_tree_for_formatter)
+   			{
+                $$ = $1;
+            }
+            else
+            {
+                var l = new List<ident>();
+                l.Add(new ident("System"));
+                l.Add(new ident("Nullable"));
+                $$ = new template_type_reference(new named_type_reference(l), new template_param_list($1), @$);
+            }
+		}
+	| template_type tkQuestion
 		{
             if (parsertools.build_tree_for_formatter)
    			{
@@ -3209,6 +3219,8 @@ new_expr
 field_in_unnamed_object
 	: identifier tkAssign relop_expr
 		{
+		    if ($3 is nil_const)
+				parsertools.AddErrorFromResource("NIL_IN_UNNAMED_OBJECT",@$);		    
 			$$ = new name_assign_expr($1,$3,@$);
 		}
 	| relop_expr

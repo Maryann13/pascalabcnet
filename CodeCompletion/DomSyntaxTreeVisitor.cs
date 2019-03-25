@@ -131,6 +131,16 @@ namespace CodeCompletion
                         return true;
                 }
             }
+            else if (node is new_expr)
+            {
+                new_expr ne = node as new_expr;
+                if (ne.params_list != null)
+                    foreach (expression e in ne.params_list.expressions)
+                    {
+                        if (has_lambdas(e))
+                            return true;
+                    }
+            }
             else if (node is tuple_node)
             {
                 tuple_node tn = node as tuple_node;
@@ -682,8 +692,9 @@ namespace CodeCompletion
                     else
                         returned_scope = null;
                 }
-                else
-            	    returned_scope = returned_scope.GetElementType();
+                else if (returned_scope.GetElementType() != null)
+                    returned_scope = returned_scope.GetElementType();
+            	    
             }
         }
 
@@ -2238,19 +2249,21 @@ namespace CodeCompletion
                 is_extensions_unit = true;
             }
             CodeCompletionController.comp_modules[_unit_module.file_name] = this.converter;
+            foreach (string s in namespaces)
+            {
+                if (!ns_cache.ContainsKey(s))
+                {
+                    NamespaceScope ns_scope = new NamespaceScope(s);
+                    entry_scope.AddName(s, ns_scope);
+                    ns_cache[s] = s;
+                }
+            }
             DateTime start_time = DateTime.Now;
+
             System.Diagnostics.Debug.WriteLine("intellisense parsing interface started " + System.Convert.ToInt32((DateTime.Now - start_time).TotalMilliseconds));
             _unit_module.interface_part.visit(this);
             System.Diagnostics.Debug.WriteLine("intellisense parsing interface ended " + System.Convert.ToInt32((DateTime.Now - start_time).TotalMilliseconds));
-            foreach (string s in namespaces)
-            {
-            	if (!ns_cache.ContainsKey(s))
-            	{
-                  NamespaceScope ns_scope = new NamespaceScope(s);
-                  entry_scope.AddName(s,ns_scope);
-                  ns_cache[s] = s;
-            	}
-            }
+            
             start_time = DateTime.Now;
             System.Diagnostics.Debug.WriteLine("intellisense parsing implementation started "+ System.Convert.ToInt32((DateTime.Now - start_time).TotalMilliseconds));
             if (_unit_module.implementation_part != null)
@@ -3270,6 +3283,7 @@ namespace CodeCompletion
                         element_type = TypeTable.obj_type;
                         break;
                     }
+                    //else element_type = TypeTable.obj_type;
                 }
             }
             
@@ -4618,6 +4632,8 @@ namespace CodeCompletion
                 if (returned_scope != null)
                 {
                     cur_scope = stmt_scope;
+                    if (returned_scope is ProcScope)
+                        returned_scope = new ProcType(returned_scope as ProcScope);
                     ElementScope es = new ElementScope(new SymInfo(_foreach_stmt.identifier.name, SymbolKind.Variable, _foreach_stmt.identifier.name), returned_scope, cur_scope);
                     es.loc = get_location(_foreach_stmt.identifier);
                     stmt_scope.AddName(_foreach_stmt.identifier.name, es);
@@ -4837,7 +4853,8 @@ namespace CodeCompletion
         public override void visit(expression_as_statement _expression_as_statement)
         {
             //throw new Exception("The method or operation is not implemented.");
-            
+            if (has_lambdas(_expression_as_statement.expr) || _expression_as_statement.expr is unnamed_type_object)
+                _expression_as_statement.expr.visit(this);
         }
 
         public override void visit(c_scalar_type _c_scalar_type)

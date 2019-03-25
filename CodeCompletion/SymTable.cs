@@ -4666,6 +4666,7 @@ namespace CodeCompletion
             if (sc == null && implemented_interfaces != null)
                 foreach (TypeScope ts in implemented_interfaces)
                 {
+                    if (ts != this)
                     sc = ts.FindNameOnlyInType(name);
                     if (sc != null)
                         break;
@@ -5649,6 +5650,8 @@ namespace CodeCompletion
                 {
                     if (code1 != TypeCode.String && code1 != TypeCode.Object)
                         if (code1 == TypeCode.Double && code2 != TypeCode.Single)
+                            return false;
+                        else if (strong && code1 == TypeCode.Char && code2 != TypeCode.Char && code2 != TypeCode.String)
                             return false;
                         else
                             return true;
