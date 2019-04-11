@@ -38,7 +38,7 @@ namespace CodeCompletion
                 left as ident ?? st as ident;
 
             var tt = global.Children.Where(s => s is TypeScopeSyntax)
-                    .Select(s => s as TypeScopeSyntax);
+                .Select(s => s as TypeScopeSyntax);
             if (id != null)
                 def = tt.FirstOrDefault(t => t.Name.name == id.name) ??
                     (IsUnitName(id.name) ? global : null);
@@ -189,6 +189,8 @@ namespace CodeCompletion
         public void FindPositions(string name, int line, int col, syntax_tree_node stn)
         {
             GenCond(name, line + 1, col + 1);
+            if (def == null)
+                return;
             FindPositionsRec(stn);
             Positions = Positions.Distinct().ToList();
         }
