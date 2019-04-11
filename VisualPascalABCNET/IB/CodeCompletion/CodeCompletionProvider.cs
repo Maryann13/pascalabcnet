@@ -198,6 +198,52 @@ namespace VisualPascalABC
 
         private RenameForm rf;
 
+        public List<SymbolsViewerSymbol> Rename1(string expr, string name, string fileName, int line, int column, ref string new_val)
+        {
+            if (rf == null)
+            {
+                rf = new RenameForm();
+                Form1StringResources.SetTextForAllControls(rf);
+            }
+            rf.EditValue = name.Trim(' ');
+            DialogResult dr = rf.ShowDialog();
+            if (dr == DialogResult.OK)
+            {
+                new_val = rf.EditValue;
+                return FindReferences1(expr, name, fileName, line, column);
+            }
+            return null;
+        }
+
+        public List<SymbolsViewerSymbol> FindReferences1(string expr, string name, string fileName, int line, int column)
+        {
+            List<PascalABCCompiler.Errors.Error> Errors = new List<PascalABCCompiler.Errors.Error>();
+            PascalABCCompiler.SyntaxTree.expression e = null;
+            if (VisualPABCSingleton.MainForm.VisualEnvironmentCompiler.compilerLoaded)
+                e = VisualPABCSingleton.MainForm.VisualEnvironmentCompiler.StandartCompiler.ParsersController.GetExpression("test" + System.IO.Path.GetExtension(fileName), expr, Errors, new List<PascalABCCompiler.Errors.CompilerWarning>());
+
+            CodeCompletion.CodeCompletionController controller = new CodeCompletion.CodeCompletionController();
+            string text = VisualPABCSingleton.MainForm.VisualEnvironmentCompiler.SourceFilesProvider(fileName, PascalABCCompiler.SourceFileOperation.GetText) as string;
+            PascalABCCompiler.SyntaxTree.compilation_unit cu = controller.ParseOnlySyntaxTree(fileName, text);
+
+            var cv = PascalABCCompiler.SyntaxTree.CollectLightSymInfoVisitor.New;
+            cv.ProcessNode(cu);
+            var rf1 = new CodeCompletion.ReferenceFinder1(e, cv.Root, cu);
+            rf1.FindPositions(name, line, column, cu);
+            //rf1.Output(@"C:\PABCWork.NET\FindRefs.txt");
+
+            List<SymbolsViewerSymbol> svs_lst = new List<SymbolsViewerSymbol>();
+            foreach (var pos in rf1.Positions)
+            {
+                if (pos.file_name != null)
+                    svs_lst.Add(new SymbolsViewerSymbol(new PascalABCCompiler
+                        .SourceLocation(pos.file_name, pos.line, pos.column,
+                            pos.end_line, pos.end_column), -1));
+            }
+            return svs_lst;
+        }
+
+
         public List<SymbolsViewerSymbol> Rename(string expr, string name, string fileName, int line, int column)
         {
             List<SymbolsViewerSymbol> refers = FindReferences(expr, fileName, line, column, true);
@@ -260,6 +306,7 @@ namespace VisualPascalABC
                         CodeCompletion.CodeCompletionController controller = new CodeCompletion.CodeCompletionController();
                         string text = VisualPABCSingleton.MainForm.VisualEnvironmentCompiler.SourceFilesProvider(FileName, PascalABCCompiler.SourceFileOperation.GetText) as string;
                         PascalABCCompiler.SyntaxTree.compilation_unit cu = controller.ParseOnlySyntaxTree(FileName, text);
+
                         if (cu != null)
                         {
                             dc = CodeCompletion.CodeCompletionController.comp_modules[FileName] as CodeCompletion.DomConverter;

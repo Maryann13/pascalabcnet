@@ -67,6 +67,7 @@
     <Compile Include="ExpressionEvaluator.cs" />
     <Compile Include="ExpressionVisitor.cs" />
     <Compile Include="FindReferences.cs" />
+    <Compile Include="FindReferences1.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SemanticTreeWalker.cs" />
     <Compile Include="SymTable.cs" />
@@ -97,6 +98,10 @@
     <ProjectReference Include="..\SyntaxTree\SyntaxTree.csproj">
       <Project>{C2CAC65A-B2AE-4CCC-B067-E6B8E75DF73A}</Project>
       <Name>SyntaxTree</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\SyntaxVisitors\SyntaxVisitors.csproj">
+      <Project>{a9ab4282-83b4-41a7-86c3-e5bf6a45e7e2}</Project>
+      <Name>SyntaxVisitors</Name>
     </ProjectReference>
     <ProjectReference Include="..\TreeConverter\TreeConverter.csproj">
       <Project>{1C9C945A-586D-42A2-A06B-65D84FA7FF78}</Project>

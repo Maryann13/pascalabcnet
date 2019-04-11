@@ -33,55 +33,64 @@ namespace PascalABCCompiler.SyntaxTree
             {
                 case program_module p:
                 case unit_module u:
-                    t = new GlobalScopeSyntax();
+                    t = new GlobalScopeSyntax(st.position());
                     Root = t;
                     break;
-                case procedure_definition p:
-                    var name = p.proc_header?.name?.meth_name;
-                    if (p.proc_header is constructor && name == null)
+                case procedure_definition pd:
+                case procedure_header p when !(p.Parent is procedure_definition):
+                    var ph = st is procedure_header phead ? phead
+                        : (st as procedure_definition).proc_header;
+                    var name = ph?.name?.meth_name;
+                    if (ph is constructor && name == null)
                         name = "Create";
-                    var attr = p.proc_header.class_keyword ? Attributes.class_attr : 0;
-                    var sk = p.proc_header is function_header ?
+                    var attr = ph.class_keyword ? Attributes.class_attr : 0;
+                    var sk = ph is function_header ?
                         SymKind.funcname : SymKind.procname;
                     if (name != null)
                         AddSymbol(name, sk, null, attr);
-                    t = new ProcScopeSyntax(name);
+
+                    if (st is procedure_definition pdef)
+                        t = new ProcScopeSyntax(name, st.position(),
+                            pdef.proc_header.name.class_name);
+                    break;
+                case simple_property sp:
+                    AddSymbol(sp.property_name?.name, SymKind.property);
                     break;
                 case const_definition p:
                     AddSymbol(p.const_name?.name, SymKind.constant);
                     break;
                 case formal_parameters p:
-                    t = new ParamsScopeSyntax();
+                    //t = new ParamsScopeSyntax(st.position());
                     break;
                 case statement_list p:
-                    t = new StatListScopeSyntax();
+                    t = new StatListScopeSyntax(st.position());
                     break;
                 case for_node p:
-                    t = new ForScopeSyntax();
+                    t = new ForScopeSyntax(st.position());
                     break;
                 case foreach_stmt p:
-                    t = new ForeachScopeSyntax();
+                    t = new ForeachScopeSyntax(st.position());
                     break;
                 /*case repeat_node p: // не надо т.к. это StatListScope
                     t = new RepeatScopeSyntax();
                     break;*/
                 case if_node p:
-                    t = new IfScopeSyntax();
+                    t = new IfScopeSyntax(st.position());
                     break;
                 case while_node p:
-                    t = new WhileScopeSyntax();
+                    t = new WhileScopeSyntax(st.position());
                     break;
                 case loop_stmt p:
-                    t = new LoopScopeSyntax();
+                    t = new LoopScopeSyntax(st.position());
                     break;
                 case with_statement p:
-                    t = new WithScopeSyntax();
+                    t = new WithScopeSyntax(st.position());
                     break;
                 case lock_stmt p:
-                    t = new LockScopeSyntax();
+                    t = new LockScopeSyntax(st.position());
                     break;
                 case case_node p:
-                    t = new CaseScopeSyntax();
+                    t = new CaseScopeSyntax(st.position());
                     break;
                 case class_definition p:
                     var td = p.Parent as type_declaration;
@@ -89,21 +98,21 @@ namespace PascalABCCompiler.SyntaxTree
                     if (p.keyword == class_keyword.Class)
                     {
                         AddSymbol(tname, SymKind.classname);
-                        t = new ClassScopeSyntax(tname);
+                        t = new ClassScopeSyntax(tname, st.position());
                     }                        
                     else if (p.keyword == class_keyword.Record)
                     {
                         AddSymbol(tname, SymKind.recordname);
-                        t = new RecordScopeSyntax(tname);
+                        t = new RecordScopeSyntax(tname, st.position());
                     }                        
                     else if (p.keyword == class_keyword.Interface)
                     {
                         AddSymbol(tname, SymKind.interfacename);
-                        t = new InterfaceScopeSyntax(tname);
+                        t = new InterfaceScopeSyntax(tname, st.position());
                     }                        
                     break;
                 case function_lambda_definition p:
-                    t = new LambdaScopeSyntax();
+                    t = new LambdaScopeSyntax(st.position());
                     break;
             }
             if (t != null)
@@ -119,6 +128,15 @@ namespace PascalABCCompiler.SyntaxTree
                         AddSymbol(new ident("Result"), SymKind.var, fh.return_type);
                     }
                 }
+                if (st is procedure_definition || st is class_definition)
+                {
+                    var ta = st is procedure_definition pd ? pd.proc_header?.template_args
+                        : (st as class_definition)?.template_args;
+                    var q = ta?.idents?.Select(x =>
+                        new SymInfoSyntax(x, SymKind.templatename, x.position()));
+                    if (q != null)
+                        Current.Symbols.AddRange(q);
+                }
             }
         }
         public override void Exit(syntax_tree_node st)
@@ -127,7 +145,7 @@ namespace PascalABCCompiler.SyntaxTree
             {
                 case program_module p:
                 case procedure_definition pd:
-                case formal_parameters fp:
+                //case formal_parameters fp:
                 case statement_list stl:
                 case for_node f:
                 case foreach_stmt fe:
@@ -152,20 +170,31 @@ namespace PascalABCCompiler.SyntaxTree
                 return;
             var type = vd.vars_type;
             var sk = Current is ClassScopeSyntax ? SymKind.field : SymKind.var;
-            var q = vd.vars.list.Select(x => new SymInfoSyntax(x, sk, type, attr));
+            var q = vd.vars.list.Select(x => new SymInfoSyntax(x, sk, x.position(), type, attr));
             if (q.Count() > 0)
                 Current.Symbols.AddRange(q);
             base.visit(vd);
         }
+
         public override void visit(formal_parameters fp)
         {
             foreach (var pg in fp.params_list)
             {
                 var type = pg.vars_type;
-                var q = pg.idents.idents.Select(x => new SymInfoSyntax(x, SymKind.param, type));
+                var q = pg.idents.idents.Select(x => new SymInfoSyntax(x, SymKind.param, x.position(), type));
                 Current.Symbols.AddRange(q);
             }
             base.visit(fp);
+        }
+
+        public override void visit(uses_list ul)
+        {
+            foreach (var u in ul.units)
+            {
+                var q = u.name.idents.Select(x => new SymInfoSyntax(x, SymKind.unitname, x.position()));
+                Current.Symbols.AddRange(q);
+            }
+            base.visit(ul);
         }
 
         public override void visit(for_node f)

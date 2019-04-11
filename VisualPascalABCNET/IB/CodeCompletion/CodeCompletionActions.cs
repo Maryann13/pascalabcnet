@@ -32,7 +32,7 @@ namespace VisualPascalABC
             string name = null;
             string expressionResult = FindOnlyIdent(textContent, textArea, ref name).Trim(' ', '\n', '\t', '\r');
             string new_val = null;
-            List<SymbolsViewerSymbol> refers = ccp.Rename(expressionResult, name, textArea.MotherTextEditorControl.FileName, textArea.Caret.Line, textArea.Caret.Column, ref new_val);
+            List<SymbolsViewerSymbol> refers = ccp.Rename1(expressionResult, name, textArea.MotherTextEditorControl.FileName, textArea.Caret.Line, textArea.Caret.Column, ref new_val);
             if (refers == null || new_val == null) return;
             int addit = 0;
             PascalABCCompiler.SourceLocation tmp = new PascalABCCompiler.SourceLocation(null, 0, 0, 0, 0);
