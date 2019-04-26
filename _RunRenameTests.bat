@@ -1,0 +1,2 @@
+bin\TestRename.exe
+pause

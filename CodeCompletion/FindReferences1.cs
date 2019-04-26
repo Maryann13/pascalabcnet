@@ -17,7 +17,7 @@ namespace CodeCompletion
         private Predicate<syntax_tree_node> Cond;
         private syntax_tree_node current;
         private string name;
-        private int line, col;
+        private int line, column;
 
         public List<Position> Positions = new List<Position>();
         public Position Def => def.Pos;
@@ -75,16 +75,16 @@ namespace CodeCompletion
                 FindLocalDefs(line, end_line, s);
         }
 
-        private void GenCond(string name, int line, int col)
+        private void GenCond(string name, int line, int column)
         {
             this.name = name;
             this.line = line;
-            this.col = col;
+            this.column = column;
 
             var dn = expr as dot_node;
             if (dn != null)
             {
-                GotoIdentByLocation(name, line, col, cu);
+                GotoIdentByLocation(name, line, column, cu);
                 def = FindDef(current, name);
             }
             else
@@ -92,26 +92,44 @@ namespace CodeCompletion
             if (def == null)
                 return;
 
-            int ln = -1, end_ln = -1;
+            var defs = def.Symbols.FindAll(s => s.Id.name == name);
+            var conflict_defs = defs.Count > 1 ?
+                defs.Skip(1).Where(d => d.SK != SymKind.funcname && d.SK != SymKind.procname) :
+                new List<SymInfoSyntax>();
+
+            foreach (var d in conflict_defs)
+                if (d.Pos.line == line
+                    && d.Pos.column <= column && column <= d.Pos.end_column)
+                {
+                    Cond = s => s.line() == d.Pos.line && s.column() == d.Pos.column;
+                    return;
+                }
+
+            int ln = def.Pos.line, col = def.Pos.column,
+                end_ln = -1, end_col = -1;
             if (def is TypeScopeSyntax)
             {
-                ln = def.Pos.line;
                 end_ln = def.Parent.Pos.end_line;
+                end_col = def.Parent.Pos.end_column;
                 FindLocalDefs(ln, def.Pos.end_line, def.Parent);
             }
             else
             {
-                ln = def.Symbols.FirstOrDefault(s => s.Id.name == name)?.Pos.line ?? 0;
                 end_ln = def.Pos.end_line;
+                end_col = def.Pos.end_column;
                 FindLocalDefs(ln, end_ln, def);
             }
             if (localDefs.Count > 0)
                 localDefs.RemoveFirst();
-            localDefs.Remove(localDefs.FirstOrDefault(s =>
-                (s as NamedScopeSyntax)?.Name.name == (def as NamedScopeSyntax)?.Name.name));
+            localDefs.Remove(localDefs.FirstOrDefault(s => s is NamedScopeSyntax ns
+                && ns?.Name.name == (def as NamedScopeSyntax)?.Name.name));
 
             var cond = new LinkedList<Predicate<syntax_tree_node>>();
-            cond.AddLast(stn => stn.line() >= ln && stn.end_line() <= end_ln);
+            cond.AddLast(stn => In(stn, ln, col, end_ln, end_col));
+
+            foreach (var d in conflict_defs)
+                cond.AddLast(stn => stn.line() != d.Pos.line
+                    || stn.column() != d.Pos.column);
 
             if (def is TypeScopeSyntax type)
                 cond.AddLast(stn => stn.Parent is dot_node d
@@ -128,8 +146,16 @@ namespace CodeCompletion
             Cond = conds;
         }
 
+        private bool In(syntax_tree_node stn, int ln, int col, int end_ln, int end_col)
+            => stn.line() >= ln && stn.end_line() < end_ln
+                || ln == end_ln && stn.line() == ln
+                    && stn.column() >= col && stn.column() <= end_col
+                || ln != end_ln && (stn.line() == ln && stn.column() >= col
+                    || stn.line() == end_ln && stn.column() <= end_col);
+
         private Predicate<syntax_tree_node> LocalDefCond(ScopeSyntax ss)
-            => stn => stn.line() < ss.Pos.line || stn.end_line() > ss.Pos.end_line;
+            => stn => !(In(stn, ss.Pos.line, ss.Pos.column,
+                ss.Pos.end_line, ss.Pos.end_column));
 
         private void GotoIdentByLocation(string name, int line, int col, syntax_tree_node cur)
         {
@@ -178,7 +204,12 @@ namespace CodeCompletion
                 : global.Children.Find(s => s is NamedScopeSyntax ns && ns.Name.name == tn));
             var td = d.Symbols.Find(s => s.Id.name == id.name).Td;
             if (td != null)
-                return td.ToString().Replace("PascalABCCompiler.SyntaxTree.", "");
+            {
+                string type_name = td.Parent is type_declaration tdecl ?
+                    tdecl.type_name.name :
+                    td.ToString();
+                return type_name.Replace("PascalABCCompiler.SyntaxTree.", "");
+            }
 
             var pos = d.Symbols.Find(s => s.Id.name == id.name).Pos;
             GotoIdentByLocation(id.name, pos.line, pos.column, cu);
@@ -217,11 +248,9 @@ namespace CodeCompletion
 #if DEBUG
             if (def == null)
                 return;
-            CollectLightSymInfoVisitor cv = new CollectLightSymInfoVisitor();
-            cv.Root = def;
-            cv.Output(fname);
-            System.IO.File.WriteAllLines(@"C:\PABCWork.NET\Debug.txt", Positions.Select(p =>
-                $"{name}, {p.line}, {p.column}"));
+            var positions = string.Join(", ", Positions.Select(p => $"{p.line} {p.column}"));
+            System.IO.File.AppendAllText(fname,
+                $"{expr.ToString()} {name} {line} {column}\n{positions}\n;\n");
 #endif
         }
     }

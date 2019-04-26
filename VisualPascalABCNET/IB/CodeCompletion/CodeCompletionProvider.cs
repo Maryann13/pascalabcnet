@@ -230,7 +230,9 @@ namespace VisualPascalABC
             cv.ProcessNode(cu);
             var rf1 = new CodeCompletion.ReferenceFinder1(e, cv.Root, cu);
             rf1.FindPositions(name, line, column, cu);
-            //rf1.Output(@"C:\PABCWork.NET\FindRefs.txt");
+            //rf1.Output(System.IO.Path.ChangeExtension(fileName, ".txt"));
+            //CodeCompletion.RenameTester
+            //    .TestRename(@"C:\Users\1\Documents\pascalabcnet\TestSuite\rename_tests");
 
             List<SymbolsViewerSymbol> svs_lst = new List<SymbolsViewerSymbol>();
             foreach (var pos in rf1.Positions)

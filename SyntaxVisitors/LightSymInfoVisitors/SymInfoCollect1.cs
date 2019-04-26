@@ -38,8 +38,8 @@ namespace PascalABCCompiler.SyntaxTree
                     break;
                 case procedure_definition pd:
                 case procedure_header p when !(p.Parent is procedure_definition):
-                    var ph = st is procedure_header phead ? phead
-                        : (st as procedure_definition).proc_header;
+                    var ph = st as procedure_header
+                        ?? (st as procedure_definition).proc_header;
                     var name = ph?.name?.meth_name;
                     if (ph is constructor && name == null)
                         name = "Create";
@@ -95,20 +95,25 @@ namespace PascalABCCompiler.SyntaxTree
                 case class_definition p:
                     var td = p.Parent as type_declaration;
                     var tname = td==null ? "NONAME" : td.type_name;
+                    var sself = new SymInfoSyntax(new ident("Self"), SymKind.field,
+                        p.position(), td.type_def);
                     if (p.keyword == class_keyword.Class)
                     {
                         AddSymbol(tname, SymKind.classname);
-                        t = new ClassScopeSyntax(tname, st.position());
+                        t = new ClassScopeSyntax(tname, td.position());
+                        t.Symbols.Add(sself);
                     }                        
                     else if (p.keyword == class_keyword.Record)
                     {
                         AddSymbol(tname, SymKind.recordname);
-                        t = new RecordScopeSyntax(tname, st.position());
+                        t = new RecordScopeSyntax(tname, td.position());
+                        t.Symbols.Add(sself);
                     }                        
                     else if (p.keyword == class_keyword.Interface)
                     {
                         AddSymbol(tname, SymKind.interfacename);
-                        t = new InterfaceScopeSyntax(tname, st.position());
+                        t = new InterfaceScopeSyntax(tname, td.position());
+                        t.Symbols.Add(sself);
                     }                        
                     break;
                 case function_lambda_definition p:
@@ -131,7 +136,8 @@ namespace PascalABCCompiler.SyntaxTree
                 if (st is procedure_definition || st is class_definition)
                 {
                     var ta = st is procedure_definition pd ? pd.proc_header?.template_args
-                        : (st as class_definition)?.template_args;
+                        : ((st.Parent as type_declaration)
+                            ?.type_name as template_type_name)?.template_args;
                     var q = ta?.idents?.Select(x =>
                         new SymInfoSyntax(x, SymKind.templatename, x.position()));
                     if (q != null)
