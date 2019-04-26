@@ -51,7 +51,7 @@ namespace PascalABCCompiler.SyntaxTree
 
                     if (st is procedure_definition pdef)
                         t = new ProcScopeSyntax(name, st.position(),
-                            pdef.proc_header.name.class_name);
+                            pdef.proc_header.name?.class_name);
                     break;
                 case simple_property sp:
                     AddSymbol(sp.property_name?.name, SymKind.property);
