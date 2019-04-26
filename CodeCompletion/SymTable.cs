@@ -4232,11 +4232,15 @@ namespace CodeCompletion
                 instances.Clear();
         }
 
-        public virtual void AddGenericParameter(string name)
+        public virtual void AddGenericParameter(ident name)
         {
             if (generic_params == null) generic_params = new List<string>();
-            generic_params.Add(name);
-            AddName(name, new TemplateParameterScope(name, TypeTable.obj_type, this));
+            generic_params.Add(name.name);
+            var ss = new TemplateParameterScope(name.name, TypeTable.obj_type, this);
+            ss.loc = new location(name.source_context.begin_position.line_num,
+                name.source_context.begin_position.column_num, name.source_context.end_position.line_num,
+                name.source_context.end_position.column_num, new document(name.source_context.FileName));
+            AddName(name.name, ss);
         }
 
         public virtual void AddGenericInstanceParameter(string name)
