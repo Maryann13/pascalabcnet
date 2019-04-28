@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Windows.Forms;
 using System.Text;
 using PascalABCCompiler.SyntaxTree;
 using Position = PascalABCCompiler.Parsers.Position;
@@ -16,18 +17,19 @@ namespace CodeCompletion
         private LinkedList<ScopeSyntax> localDefs = new LinkedList<ScopeSyntax>();
         private Predicate<syntax_tree_node> Cond;
         private syntax_tree_node current;
-        private string name;
+        private string name, new_val;
         private int line, column;
 
         public List<Position> Positions = new List<Position>();
         public Position Def => def.Pos;
 
-        public ReferenceFinder1(expression expr, ScopeSyntax scope, compilation_unit cu)
+        public ReferenceFinder1(expression expr, ScopeSyntax scope, compilation_unit cu, string new_val)
         {
             this.expr = expr;
             this.cu = cu;
             global = scope;
             current = cu;
+            this.new_val = new_val;
         }
 
         private ScopeSyntax FindDef(syntax_tree_node st, string name)
@@ -53,6 +55,8 @@ namespace CodeCompletion
 
         private ScopeSyntax FindDef(int line, string name, ScopeSyntax cur_sc)
         {
+            if (cur_sc == null)
+                return null;
             var ss = cur_sc.Children.FirstOrDefault(s =>
                 s.Pos.line <= line && s.Pos.end_line >= line);
             if (ss != null)
@@ -62,7 +66,30 @@ namespace CodeCompletion
                     return def;
             }
 
-            return cur_sc.Symbols.Exists(s => s.Id.name == name) ? cur_sc : null;
+            var def_base_type = cur_sc is TypeScopeSyntax ?
+                FindDefBaseType(name, cur_sc) : null;
+            return def_base_type ?? (cur_sc.Symbols.Exists(s => s.Id.name == name) ? cur_sc : null);
+        }
+
+        private ScopeSyntax FindDefBaseType(string name, ScopeSyntax cur_sc)
+        {
+            ScopeSyntax found_sc = null;
+            if (cur_sc is TypeScopeSyntax)
+            {
+                found_sc = cur_sc;
+                var sdef = found_sc.Symbols.FirstOrDefault(s => s.Id.name == name);
+                while (sdef == null || sdef.Attr.HasFlag(Attributes.override_attr))
+                {
+                    found_sc = global.Children.FirstOrDefault(s => s is TypeScopeSyntax ts
+                        && ((((found_sc as TypeScopeSyntax).Name.Parent as type_declaration)
+                            ?.type_def as class_definition)?.class_parents?.types?.Exists(c =>
+                                c.names.Exists(n => n.name == ts.Name.name)) ?? false));
+                    if (found_sc == null)
+                        break;
+                    sdef = found_sc.Symbols.FirstOrDefault(s => s.Id.name == name);
+                }
+            }
+            return found_sc;
         }
 
         private void FindLocalDefs(int line, int end_line, ScopeSyntax cur_sc)
@@ -132,10 +159,14 @@ namespace CodeCompletion
                     || stn.column() != d.Pos.column);
 
             if (def is TypeScopeSyntax type)
+            {
+                var in_derived_cond = GenCondDerivedTypes();
                 cond.AddLast(stn => stn.Parent is dot_node d
                         && stn == d.right && GetTypeName(d.left) == type.Name.name
                     || stn.end_line() <= def.Pos.end_line
+                    || in_derived_cond(stn)
                     || stn.Parent is method_name mn && mn?.class_name?.name == type.Name.name);
+            }
             else
                 cond.AddLast(stn => !(stn.Parent is dot_node d) || stn == d.left
                     || IsUnitName((d.left as ident)?.name));
@@ -144,6 +175,39 @@ namespace CodeCompletion
                 .Concat(cond)
                 .Aggregate((c1, c2) => stn => c1(stn) && c2(stn));
             Cond = conds;
+        }
+
+        private Predicate<syntax_tree_node> GenCondDerivedTypes()
+        {
+            if (def is TypeScopeSyntax type)
+            {
+                var in_derived_conds = new List<Predicate<syntax_tree_node>>();
+                var scopes = new List<TypeScopeSyntax>();
+                scopes.Add(type);
+                List<TypeScopeSyntax> derived_types;
+                do
+                {
+                    derived_types = new List<TypeScopeSyntax>();
+                    foreach (var sc in scopes)
+                        derived_types.AddRange(global.Children.Where(s => s is TypeScopeSyntax ts
+                                && (((ts.Name.Parent as type_declaration)?.type_def as class_definition)
+                                    ?.class_parents?.types?.Exists(c =>
+                                        c.names.Exists(n => n.name == sc.Name.name)
+                                && !s.Symbols.Exists(sym => sym.Id.name == name
+                                    && !sym.Attr.HasFlag(Attributes.override_attr))) ?? false))
+                            .Select(s => s as TypeScopeSyntax));
+
+                    in_derived_conds.AddRange(derived_types.Select(t => (Predicate<syntax_tree_node>)
+                            (stn => In(stn, t.Pos.line, t.Pos.column, t.Pos.end_line, t.Pos.end_column))));
+                    scopes = derived_types;
+                } while (derived_types.Count > 0);
+
+                return in_derived_conds.Count > 0 ?
+                    in_derived_conds.Aggregate((c1, c2) =>
+                        stn => c1(stn) || c2(stn)) :
+                    stn => false;
+            }
+            return stn => false;
         }
 
         private bool In(syntax_tree_node stn, int ln, int col, int end_ln, int end_col)

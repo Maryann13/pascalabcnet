@@ -39,19 +39,23 @@ namespace PascalABCCompiler.SyntaxTree
                 case procedure_definition pd:
                 case procedure_header p when !(p.Parent is procedure_definition):
                     var ph = st as procedure_header
-                        ?? (st as procedure_definition).proc_header;
+                        ?? (st as procedure_definition)?.proc_header;
                     var name = ph?.name?.meth_name;
                     if (ph is constructor && name == null)
                         name = "Create";
-                    var attr = ph.class_keyword ? Attributes.class_attr : 0;
+                    var attr = ph?.proc_attributes?.proc_attributes?.Exists(pa =>
+                            pa.attribute_type == proc_attribute.attr_override) ?? false ?
+                        Attributes.override_attr : 0;
+                    if (ph.class_keyword)
+                        attr &= Attributes.class_attr;
                     var sk = ph is function_header ?
                         SymKind.funcname : SymKind.procname;
                     if (name != null)
                         AddSymbol(name, sk, null, attr);
-
+                    
                     if (st is procedure_definition pdef)
                         t = new ProcScopeSyntax(name, st.position(),
-                            pdef.proc_header.name?.class_name);
+                            pdef?.proc_header.name?.class_name);
                     break;
                 case simple_property sp:
                     AddSymbol(sp.property_name?.name, SymKind.property);

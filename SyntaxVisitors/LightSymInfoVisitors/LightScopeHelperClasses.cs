@@ -22,7 +22,7 @@ namespace PascalABCCompiler.SyntaxTree
                           unitname, templatename, property};
 
     [Flags]
-    public enum Attributes { class_attr = 1, varparam_attr = 2};
+    public enum Attributes { class_attr = 1, varparam_attr = 2, override_attr = 4 };
 
     public class SymInfoSyntax
     {

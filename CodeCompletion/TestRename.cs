@@ -46,7 +46,7 @@ namespace CodeCompletion
                     string fname = Path.GetFileNameWithoutExtension(FileName).Split('\\').Last();
                     assert(positions.Count() == ts.Positions.Count() &&
                         positions.Zip(ts.Positions, (p1, p2) => p1 == p2).All(e => e),
-                            $"Test {fname}-{i} failed.\n\n" +
+                            $"Test {fname}-{i + 1} failed.\n\n" +
                             $"{string.Join(" ", ts.Expr, ts.Name, ts.Line, ts.Col)}\n" +
                             $"{string.Join(", ", positions)}\n\n" +
                             $"Should:\n{string.Join(", ", ts.Positions)}");
@@ -63,7 +63,7 @@ namespace CodeCompletion
 
             var cv = CollectLightSymInfoVisitor.New;
             cv.ProcessNode(cu);
-            var rf1 = new ReferenceFinder1(e, cv.Root, cu);
+            var rf1 = new ReferenceFinder1(e, cv.Root, cu, "@~a");
             rf1.FindPositions(name, line, column, cu);
 
             return rf1.Positions;
