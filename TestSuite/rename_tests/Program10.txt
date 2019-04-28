@@ -1,0 +1,33 @@
+ProcI ProcI 2 4 ProcI1
+2 3
+;
+FunI FunI 3 5 FunI1
+3 3, 11 8
+;
+FunI FunI 11 11 FunI1
+3 3, 11 8
+;
+DayOfWeek DayOfWeek 4 9 DayOfWeek1
+4 3, 14 10, 16 8
+;
+DayOfWeek DayOfWeek 14 15 DayOfWeek1
+4 3, 14 10, 16 8
+;
+DayOfWeek DayOfWeek 16 12 DayOfWeek1
+4 3, 14 10, 16 8
+;
+DayOfWeek.Wed Wed 16 19 Wed1
+4 24, 16 18
+;
+Mon Mon 4 17 Mon1
+4 16, 15 8
+;
+Mon Mon 15 9 Mon1
+4 16, 15 8
+;
+Wed Wed 4 27 Wed1
+4 24, 16 18
+;
+DayOfWeek DayOfWeek 4 6 i
+4 3, 14 10, 16 8
+;

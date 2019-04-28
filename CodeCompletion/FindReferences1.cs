@@ -74,7 +74,7 @@ namespace CodeCompletion
         private ScopeSyntax FindDefBaseType(string name, ScopeSyntax cur_sc)
         {
             ScopeSyntax found_sc = null;
-            if (cur_sc is TypeScopeSyntax)
+            if (cur_sc is TypeScopeSyntax && !(cur_sc is EnumScopeSyntax))
             {
                 found_sc = cur_sc;
                 var sdef = found_sc.Symbols.FirstOrDefault(s => s.Id.name == name);
@@ -94,7 +94,8 @@ namespace CodeCompletion
 
         private void FindLocalDefs(int line, int end_line, ScopeSyntax cur_sc)
         {
-            if (cur_sc.Symbols.Exists(s => s.Id.name == name))
+            if (cur_sc.Symbols.Exists(s => s.Id.name == name)
+                    && !(cur_sc is EnumScopeSyntax))
                 localDefs.AddLast(cur_sc);
 
             var ss = cur_sc.Children.Where(s => s.Pos.line >= line && s.Pos.end_line <= end_line);
@@ -117,6 +118,14 @@ namespace CodeCompletion
             else
                 def = FindDef(line, name, global);
             CheckNewValDoesNotExist();
+
+            if (def == null)
+                foreach (var e in global.Children.Where(s => s is EnumScopeSyntax))
+                    if (e.Symbols.Exists(s => s.Id.name == name))
+                    {
+                        def = e;
+                        break;
+                    }
             if (def == null)
                 return;
 
@@ -159,7 +168,10 @@ namespace CodeCompletion
                 cond.AddLast(stn => stn.line() != d.Pos.line
                     || stn.column() != d.Pos.column);
 
-            if (def is TypeScopeSyntax type)
+            if (def is EnumScopeSyntax es)
+                cond.AddLast(stn => !(stn.Parent is dot_node d)
+                    || stn == d.right && (d.left as ident)?.name == es.Name.name);
+            else if (def is TypeScopeSyntax type)
             {
                 var in_derived_cond = GenCondDerivedTypes();
                 cond.AddLast(stn => stn.Parent is dot_node d
@@ -235,6 +247,9 @@ namespace CodeCompletion
                     && stn.column() >= col && stn.column() <= end_col
                 || ln != end_ln && (stn.line() == ln && stn.column() >= col
                     || stn.line() == end_ln && stn.column() <= end_col);
+
+        private bool In(syntax_tree_node stn, Position pos)
+            => In(stn, pos.line, pos.column, pos.end_line, pos.end_column);
 
         private Predicate<syntax_tree_node> LocalDefCond(ScopeSyntax ss)
             => stn => !(In(stn, ss.Pos.line, ss.Pos.column,

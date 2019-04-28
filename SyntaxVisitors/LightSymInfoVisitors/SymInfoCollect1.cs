@@ -43,6 +43,8 @@ namespace PascalABCCompiler.SyntaxTree
                     var name = ph?.name?.meth_name;
                     if (ph is constructor && name == null)
                         name = "Create";
+                    else if (ph.Parent is type_declaration tdecl)
+                        name = tdecl.type_name;
                     var attr = ph?.proc_attributes?.proc_attributes?.Exists(pa =>
                             pa.attribute_type == proc_attribute.attr_override) ?? false ?
                         Attributes.override_attr : 0;
@@ -56,6 +58,19 @@ namespace PascalABCCompiler.SyntaxTree
                     if (st is procedure_definition pdef)
                         t = new ProcScopeSyntax(name, st.position(),
                             pdef?.proc_header.name?.class_name);
+                    break;
+                case enum_type_definition e:
+                    var edecl = e.Parent as type_declaration;
+                    ident ename = edecl?.type_name;
+                    AddSymbol(ename, SymKind.enumname, edecl?.type_def);
+                    t = new EnumScopeSyntax(ename, st.position());
+                    foreach (var en in e.enumerators?.enumerators)
+                    {
+                        var nm = (en.name as named_type_reference)?.names[0];
+                        if (nm != null)
+                            t.Symbols.Add(new SymInfoSyntax(nm, SymKind.enumerator,
+                                nm.position()));
+                    }
                     break;
                 case simple_property sp:
                     AddSymbol(sp.property_name?.name, SymKind.property);
@@ -165,6 +180,7 @@ namespace PascalABCCompiler.SyntaxTree
                 case with_statement ws:
                 case lock_stmt ls:
                 case class_definition cd:
+                case enum_type_definition e:
                 //case record_type rt:
                 case function_lambda_definition fld:
                 //case repeat_node rep:
@@ -192,7 +208,8 @@ namespace PascalABCCompiler.SyntaxTree
             {
                 var type = pg.vars_type;
                 var q = pg.idents.idents.Select(x => new SymInfoSyntax(x, SymKind.param, x.position(), type));
-                Current.Symbols.AddRange(q);
+                if (Current is ProcScopeSyntax || Current is LambdaScopeSyntax)
+                    Current.Symbols.AddRange(q);
             }
             base.visit(fp);
         }

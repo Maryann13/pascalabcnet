@@ -19,7 +19,7 @@ using PascalABCCompiler.Parsers;
 namespace PascalABCCompiler.SyntaxTree
 {
     public enum SymKind { var, constant, field, param, procname, funcname, classname, recordname, interfacename,
-                          unitname, templatename, property};
+                          unitname, templatename, property, enumname, enumerator};
 
     [Flags]
     public enum Attributes { class_attr = 1, varparam_attr = 2, override_attr = 4 };
@@ -105,7 +105,11 @@ namespace PascalABCCompiler.SyntaxTree
     public class InterfaceScopeSyntax : TypeScopeSyntax
     {
         public InterfaceScopeSyntax(ident Name, Position Pos) : base(Name, Pos) { }
-    } 
+    }
+    public class EnumScopeSyntax : TypeScopeSyntax
+    {
+        public EnumScopeSyntax(ident Name, Position Pos) : base(Name, Pos) { }
+    }
     public class LightScopeSyntax : ScopeSyntax // предок всех легковесных
     {
         public LightScopeSyntax(Position Pos) : base(Pos) { }
