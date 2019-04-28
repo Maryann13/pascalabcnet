@@ -210,12 +210,12 @@ namespace VisualPascalABC
             if (dr == DialogResult.OK)
             {
                 new_val = rf.EditValue;
-                return FindReferences1(expr, name, fileName, line, column);
+                return FindReferences1(expr, name, fileName, line, column, new_val);
             }
             return null;
         }
 
-        public List<SymbolsViewerSymbol> FindReferences1(string expr, string name, string fileName, int line, int column)
+        public List<SymbolsViewerSymbol> FindReferences1(string expr, string name, string fileName, int line, int column, string new_val)
         {
             List<PascalABCCompiler.Errors.Error> Errors = new List<PascalABCCompiler.Errors.Error>();
             PascalABCCompiler.SyntaxTree.expression e = null;
@@ -226,16 +226,27 @@ namespace VisualPascalABC
             string text = VisualPABCSingleton.MainForm.VisualEnvironmentCompiler.SourceFilesProvider(fileName, PascalABCCompiler.SourceFileOperation.GetText) as string;
             PascalABCCompiler.SyntaxTree.compilation_unit cu = controller.ParseOnlySyntaxTree(fileName, text);
 
-            var cv = PascalABCCompiler.SyntaxTree.CollectLightSymInfoVisitor.New;
-            cv.ProcessNode(cu);
-            var rf1 = new CodeCompletion.ReferenceFinder1(e, cv.Root, cu);
-            rf1.FindPositions(name, line, column, cu);
+            var positions = new List<Position>();
+#if !DEBUG
+            try
+            {
+#endif
+                var cv = PascalABCCompiler.SyntaxTree.CollectLightSymInfoVisitor.New;
+                cv.ProcessNode(cu);
+                var rf1 = new CodeCompletion.ReferenceFinder1(e, cv.Root, cu, new_val);
+                rf1.FindPositions(name, line, column, cu);
+                positions = rf1.Positions;
+#if !DEBUG
+            }
+            catch (Exception)
+            { }
+#endif
             //rf1.Output(System.IO.Path.ChangeExtension(fileName, ".txt"));
             //CodeCompletion.RenameTester
             //    .TestRename(@"C:\Users\1\Documents\pascalabcnet\TestSuite\rename_tests");
 
             List<SymbolsViewerSymbol> svs_lst = new List<SymbolsViewerSymbol>();
-            foreach (var pos in rf1.Positions)
+            foreach (var pos in positions)
             {
                 if (pos.file_name != null)
                     svs_lst.Add(new SymbolsViewerSymbol(new PascalABCCompiler
