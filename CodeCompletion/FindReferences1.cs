@@ -116,6 +116,7 @@ namespace CodeCompletion
             }
             else
                 def = FindDef(line, name, global);
+            CheckNewValDoesNotExist();
             if (def == null)
                 return;
 
@@ -208,6 +209,24 @@ namespace CodeCompletion
                     stn => false;
             }
             return stn => false;
+        }
+
+        private void CheckNewValDoesNotExist()
+        {
+            var cur = def;
+            while (cur != null && !(cur is TypeScopeSyntax))
+            {
+                if (cur.Symbols.Exists(s => s.Id.name == new_val))
+                {
+                    string sc_str = cur == def ? "В данной" : "Во включающей";
+                    MessageBox.Show($"{sc_str} области локальной видимости уже содержится " +
+                        "переменная с таким именем!", "Неразрешимый конфликт", MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
+                    def = null;
+                    return;
+                }
+                cur = cur.Parent;
+            }
         }
 
         private bool In(syntax_tree_node stn, int ln, int col, int end_ln, int end_col)
@@ -310,11 +329,9 @@ namespace CodeCompletion
         public void Output(string fname)
         {
 #if DEBUG
-            if (def == null)
-                return;
             var positions = string.Join(", ", Positions.Select(p => $"{p.line} {p.column}"));
             System.IO.File.AppendAllText(fname,
-                $"{expr.ToString()} {name} {line} {column}\n{positions}\n;\n");
+                $"{expr.ToString()} {name} {line} {column} {new_val}\n{positions}\n;\n");
 #endif
         }
     }

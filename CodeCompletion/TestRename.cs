@@ -17,7 +17,10 @@ namespace CodeCompletion
             var files = Directory.GetFiles(dir, "*.pas");
             foreach (var FileName in files)
             {
-                var testSuit = File.ReadAllText(Path.ChangeExtension(FileName, ".txt"))
+                var testsuite_fname = Path.ChangeExtension(FileName, ".txt");
+                if (!File.Exists(testsuite_fname))
+                    break;
+                var testSuit = File.ReadAllText(testsuite_fname)
                     .Split(';').Select(ts =>
                         ts.Split(new char[] { '\n' }, StringSplitOptions.RemoveEmptyEntries))
                     .Where(ts => ts.Length > 1)
@@ -34,6 +37,7 @@ namespace CodeCompletion
                             Name = tsIn[1],
                             Line = int.Parse(tsIn[2]),
                             Col = int.Parse(tsIn[3]),
+                            NewVal = tsIn.Length > 4 ? tsIn[4] : "@~",
                             Positions = tsOut
                         };
                     }).ToArray();
@@ -42,7 +46,7 @@ namespace CodeCompletion
                 {
                     var ts = testSuit[i];
                     var positions = FindPositions(ts.Expr, ts.Name, FileName,
-                        ts.Line - 1, ts.Col - 1).Select(p => new Pos(p.line, p.column));
+                        ts.Line - 1, ts.Col - 1, ts.NewVal).Select(p => new Pos(p.line, p.column));
                     string fname = Path.GetFileNameWithoutExtension(FileName).Split('\\').Last();
                     assert(positions.Count() == ts.Positions.Count() &&
                         positions.Zip(ts.Positions, (p1, p2) => p1 == p2).All(e => e),
@@ -54,7 +58,8 @@ namespace CodeCompletion
             }
         }
 
-        private static List<Position> FindPositions(string expr, string name, string fileName, int line, int column)
+        private static List<Position> FindPositions(string expr, string name, string fileName,
+            int line, int column, string new_val)
         {
             string text = File.ReadAllText(fileName);
             PascalABCNewLanguageParser parser = new PascalABCNewLanguageParser();
@@ -63,7 +68,7 @@ namespace CodeCompletion
 
             var cv = CollectLightSymInfoVisitor.New;
             cv.ProcessNode(cu);
-            var rf1 = new ReferenceFinder1(e, cv.Root, cu, "@~a");
+            var rf1 = new ReferenceFinder1(e, cv.Root, cu, new_val);
             rf1.FindPositions(name, line, column, cu);
 
             return rf1.Positions;
