@@ -118,19 +118,19 @@ namespace PascalABCCompiler.SyntaxTree
                         p.position(), td.type_def);
                     if (p.keyword == class_keyword.Class)
                     {
-                        AddSymbol(tname, SymKind.classname);
+                        AddSymbol(tname, SymKind.classname, td?.type_def);
                         t = new ClassScopeSyntax(tname, td.position());
                         t.Symbols.Add(sself);
                     }                        
                     else if (p.keyword == class_keyword.Record)
                     {
-                        AddSymbol(tname, SymKind.recordname);
+                        AddSymbol(tname, SymKind.recordname, td?.type_def);
                         t = new RecordScopeSyntax(tname, td.position());
                         t.Symbols.Add(sself);
                     }                        
                     else if (p.keyword == class_keyword.Interface)
                     {
-                        AddSymbol(tname, SymKind.interfacename);
+                        AddSymbol(tname, SymKind.interfacename, td?.type_def);
                         t = new InterfaceScopeSyntax(tname, td.position());
                         t.Symbols.Add(sself);
                     }                        

@@ -227,23 +227,23 @@ namespace VisualPascalABC
             PascalABCCompiler.SyntaxTree.compilation_unit cu = controller.ParseOnlySyntaxTree(fileName, text);
 
             var positions = new List<Position>();
-#if !DEBUG
             try
             {
-#endif
                 var cv = PascalABCCompiler.SyntaxTree.CollectLightSymInfoVisitor.New;
                 cv.ProcessNode(cu);
                 var rf1 = new CodeCompletion.ReferenceFinder1(e, cv.Root, cu, new_val);
                 rf1.FindPositions(name, line, column, cu);
                 positions = rf1.Positions;
-#if !DEBUG
+                //rf1.Output(System.IO.Path.ChangeExtension(fileName, ".txt"));
+                //CodeCompletion.RenameTester
+                //    .TestRename(@"C:\Users\1\Documents\pascalabcnet\TestSuite\rename_tests");
             }
-            catch (Exception)
-            { }
+            catch (Exception exc)
+            {
+#if DEBUG
+                throw exc;
 #endif
-            //rf1.Output(System.IO.Path.ChangeExtension(fileName, ".txt"));
-            //CodeCompletion.RenameTester
-            //    .TestRename(@"C:\Users\1\Documents\pascalabcnet\TestSuite\rename_tests");
+            }
 
             List<SymbolsViewerSymbol> svs_lst = new List<SymbolsViewerSymbol>();
             foreach (var pos in positions)

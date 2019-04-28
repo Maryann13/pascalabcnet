@@ -105,6 +105,8 @@ namespace CodeCompletion
 
         private void GenCond(string name, int line, int column)
         {
+            if (global == null)
+                return;
             this.name = name;
             this.line = line;
             this.column = column;
