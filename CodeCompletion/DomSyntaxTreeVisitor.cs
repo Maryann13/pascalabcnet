@@ -1955,6 +1955,8 @@ namespace CodeCompletion
                     ts.loc = get_location(_type_declaration);
                     ts.topScope = cur_scope;
                     ts.declaringUnit = entry_scope;
+                    foreach (var ta in template_args.list)
+                        ts.AddTemplateParameter(ta);
                     //ts.si.describe = "type "+ret_tn.si.name+" = "+ret_tn.si.describe;
                     cur_scope.AddName(_type_declaration.type_name.name, ts);
                     if (add_doc_from_text && this.converter.controller.docs != null && this.converter.controller.docs.ContainsKey(_type_declaration))

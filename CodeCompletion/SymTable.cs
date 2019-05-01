@@ -2901,7 +2901,9 @@ namespace CodeCompletion
 
         public override SymScope FindName(string name)
         {
-            SymScope ss = actType.FindName(name);
+            SymScope ss = members?.FirstOrDefault(sc => sc.Name == name);
+            if (ss != null) return ss;
+            ss = actType.FindName(name);
             if (ss != null) return ss;
             if (topScope != null) return topScope.FindName(name);
             return null;
@@ -2990,6 +2992,16 @@ namespace CodeCompletion
         public override List<SymScope> FindOverloadNamesOnlyInType(string name)
         {
             return actType.FindOverloadNamesOnlyInType(name);
+        }
+
+        public void AddTemplateParameter(ident name)
+        {
+            generic_params.Add(name.name);
+            var ss = new TemplateParameterScope(name.name, TypeTable.obj_type, this);
+            ss.loc = new location(name.source_context.begin_position.line_num,
+                name.source_context.begin_position.column_num, name.source_context.end_position.line_num,
+                name.source_context.end_position.column_num, new document(name.source_context.FileName));
+            AddName(name.name, ss);
         }
 
         public override bool IsConvertable(TypeScope ts, bool strong = false)
