@@ -9,6 +9,7 @@ using ICSharpCode.TextEditor;
 using ICSharpCode.TextEditor.Gui.CompletionWindow;
 using ICSharpCode.TextEditor.Document;
 using PascalABCCompiler.Parsers;
+using System.Linq;
 
 namespace VisualPascalABC
 {
@@ -234,14 +235,22 @@ namespace VisualPascalABC
                 var rf1 = new CodeCompletion.ReferenceFinder1(e, cv.Root, cu, new_val);
                 rf1.FindPositions(name, line, column, cu);
                 positions = rf1.Positions;
+
+                string unitFile = rf1.UnitDefScope?.Pos.file_name;
+                if (unitFile != null)
+                {
+                    var unitPositions = FindPositionsInClosed(name, name, unitFile,
+                        rf1.UnitDefScope.Pos.line, rf1.UnitDefScope.Pos.column + 1, new_val);
+                    RenameInClosed(unitFile, unitPositions, name, new_val);
+                }
                 //rf1.Output(System.IO.Path.ChangeExtension(fileName, ".txt"));
                 //CodeCompletion.RenameTester
                 //    .TestRename(@"C:\Users\1\Documents\pascalabcnet\TestSuite\rename_tests");
             }
-            catch (Exception exc)
+            catch (Exception)
             {
 #if DEBUG
-                throw exc;
+                throw;
 #endif
             }
 
@@ -256,6 +265,43 @@ namespace VisualPascalABC
             return svs_lst;
         }
 
+        private void RenameInClosed(string fname, List<Position> positions, string name, string new_val)
+        {
+            var orderedPositions = positions.OrderByDescending(p => p.line)
+                .ThenByDescending(p => p.column);
+            try
+            {
+                string[] content = System.IO.File.ReadAllLines(fname);
+                foreach (var p in orderedPositions)
+                {
+                    string c = content[p.line - 1];
+                    c = c.Remove(p.column - 1, name.Length);
+                    content[p.line - 1] = c.Insert(p.column - 1, new_val);
+                }
+                System.IO.File.WriteAllLines(fname, content);
+            }
+            catch (Exception)
+            {
+                MessageBox.Show($"Ошибка сохранения изменений в файл модуля \"{System.IO.Path.GetFileName(fname)}\".",
+                    "", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private List<Position> FindPositionsInClosed(string expr, string name, string fileName,
+            int line, int column, string new_val)
+        {
+            string text = System.IO.File.ReadAllText(fileName);
+            var parser = new PascalABCCompiler.PascalABCNewParser.PascalABCNewLanguageParser();
+            var cu = parser.BuildTreeInNormalMode(fileName, text) as PascalABCCompiler.SyntaxTree.compilation_unit;
+            var e = parser.BuildTreeInExprMode(fileName, expr) as PascalABCCompiler.SyntaxTree.expression;
+
+            var cv = PascalABCCompiler.SyntaxTree.CollectLightSymInfoVisitor.New;
+            cv.ProcessNode(cu);
+            var rf1 = new CodeCompletion.ReferenceFinder1(e, cv.Root, cu, new_val);
+            rf1.FindPositions(name, line, column, cu);
+
+            return rf1.Positions;
+        }
 
         public List<SymbolsViewerSymbol> Rename(string expr, string name, string fileName, int line, int column)
         {

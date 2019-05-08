@@ -2,8 +2,10 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Forms;
+using System.IO;
 using System.Text;
 using PascalABCCompiler.SyntaxTree;
+using PascalABCCompiler.PascalABCNewParser;
 using Position = PascalABCCompiler.Parsers.Position;
 
 namespace CodeCompletion
@@ -17,11 +19,13 @@ namespace CodeCompletion
         private LinkedList<ScopeSyntax> localDefs = new LinkedList<ScopeSyntax>();
         private Predicate<syntax_tree_node> Cond;
         private syntax_tree_node current;
+        private string foundUnit = null;
         private string name, new_val;
         private int line, column;
 
         public List<Position> Positions = new List<Position>();
         public Position Def => def.Pos;
+        public ScopeSyntax UnitDefScope;
 
         public ReferenceFinder1(expression expr, ScopeSyntax scope, compilation_unit cu, string new_val)
         {
@@ -32,20 +36,37 @@ namespace CodeCompletion
             this.new_val = new_val;
         }
 
-        private ScopeSyntax FindDef(syntax_tree_node st, string name)
+        private ScopeSyntax FindDef(syntax_tree_node st, string name,
+            ScopeSyntax cur_sc, string unitName = null)
         {
             ScopeSyntax def = null;
             var left = ((current as ident)?.Parent as dot_node)?.left;
             var id = (st?.Parent as method_name)?.class_name ??
                 left as ident ?? st as ident;
 
-            var tt = global.Children.Where(s => s is TypeScopeSyntax)
+            if (unitName == null)
+            {
+                var leftmost = left;
+                while (leftmost is dot_node dn)
+                    leftmost = dn.left;
+                string lm_name = (leftmost as ident)?.name;
+                if (unitName == null && global.Symbols.Exists(s => s.SK == SymKind.unitname
+                        && s.Id.name == lm_name))
+                {
+                    var d = FindDefInUnit(lm_name);
+                    if (d != null)
+                        foundUnit = lm_name;
+                    return d;
+                }
+            }
+
+            var tt = cur_sc.Children.Where(s => s is TypeScopeSyntax)
                 .Select(s => s as TypeScopeSyntax);
             if (id != null)
                 def = tt.FirstOrDefault(t => t.Name.name == id.name) ??
-                    (IsUnitName(id.name) ? global : null);
+                    (id.name == unitName ? cur_sc : null);
             if (def == null)
-                def = tt.FirstOrDefault(t => t.Name.name == GetTypeName(left));
+                def = tt.FirstOrDefault(t => t.Name.name == GetTypeName(left, cur_sc, unitName));
             return def;
         }
 
@@ -71,6 +92,18 @@ namespace CodeCompletion
             return def_base_type ?? (cur_sc.Symbols.Exists(s => s.Id.name == name) ? cur_sc : null);
         }
 
+        private ScopeSyntax FindDef(ScopeSyntax cur_sc)
+        {
+            var dn = expr as dot_node;
+            if (dn != null)
+            {
+                GotoIdentByLocation(name, line, column, cu);
+                return FindDef(current, name, cur_sc);
+            }
+            else
+                return FindDef(line, name, cur_sc);
+        }
+
         private ScopeSyntax FindDefBaseType(string name, ScopeSyntax cur_sc)
         {
             ScopeSyntax found_sc = null;
@@ -92,6 +125,31 @@ namespace CodeCompletion
             return found_sc;
         }
 
+        private ScopeSyntax FindDefInUnit(string unitName)
+        {
+            string dir = Path.GetDirectoryName(global.Pos.file_name);
+            string fname = $"{dir}{Path.DirectorySeparatorChar}{unitName}.pas";
+            if (!File.Exists(fname))
+                return null;
+
+            string fcontent = File.ReadAllText(fname);
+            PascalABCNewLanguageParser parser = new PascalABCNewLanguageParser();
+            compilation_unit cu = parser.BuildTreeInNormalMode(fname, fcontent) as compilation_unit;
+
+            var cv = CollectLightSymInfoVisitor.New;
+            cv.ProcessNode(cu);
+
+            var dn = expr as dot_node;
+            if (dn != null)
+            {
+                GotoIdentByLocation(name, line, column, this.cu);
+                return FindDef(current, name, cv.Root, unitName);
+            }
+            else if (cv.Root.Symbols.Exists(s => s.Id.name == name))
+                return cv.Root;
+            return null;
+        }
+
         private void FindLocalDefs(int line, int end_line, ScopeSyntax cur_sc)
         {
             if (cur_sc.Symbols.Exists(s => s.Id.name == name)
@@ -103,6 +161,23 @@ namespace CodeCompletion
                 FindLocalDefs(line, end_line, s);
         }
 
+        private void AddToGlobal(ScopeSyntax d)
+        {
+            if (d is GlobalScopeSyntax)
+            {
+                global.Symbols.Add(d.Symbols.Find(s => s.Id.name == name));
+                def = global;
+            }
+            else if (d is TypeScopeSyntax ts)
+            {
+                global.Children.Add(d);
+                global.Symbols.Add(d.Parent.Symbols.Find(s => s.Id.name == ts.Name.name));
+                d.Parent = global;
+                def = d;
+            }
+            UnitDefScope = d;
+        }
+
         private void GenCond(string name, int line, int column)
         {
             if (global == null)
@@ -110,15 +185,10 @@ namespace CodeCompletion
             this.name = name;
             this.line = line;
             this.column = column;
-
-            var dn = expr as dot_node;
-            if (dn != null)
-            {
-                GotoIdentByLocation(name, line, column, cu);
-                def = FindDef(current, name);
-            }
-            else
-                def = FindDef(line, name, global);
+            
+            def = FindDef(global);
+            if (foundUnit != null)
+                AddToGlobal(def);
             CheckNewValDoesNotExist();
 
             if (def == null)
@@ -128,6 +198,19 @@ namespace CodeCompletion
                         def = e;
                         break;
                     }
+
+            if (def == null)
+                foreach (var u in global.Symbols
+                    .Where(s => s.SK == SymKind.unitname).Reverse())
+                {
+                    var d = FindDefInUnit(u.Id.name);
+                    if (d != null)
+                    {
+                        foundUnit = u.Id.name;
+                        AddToGlobal(d);
+                        break;
+                    }
+                }
             if (def == null)
                 return;
 
@@ -144,8 +227,13 @@ namespace CodeCompletion
                     return;
                 }
 
-            int ln = def.Pos.line, col = def.Pos.column,
-                end_ln = -1, end_col = -1;
+            int ln = 0, col = 0, end_ln = -1, end_col = -1; ;
+            if (foundUnit == null)
+            {
+                ln = def.Pos.line;
+                col = def.Pos.column;
+            }
+
             if (def is TypeScopeSyntax)
             {
                 end_ln = def.Parent.Pos.end_line;
@@ -177,14 +265,14 @@ namespace CodeCompletion
             {
                 var in_derived_cond = GenCondDerivedTypes();
                 cond.AddLast(stn => stn.Parent is dot_node d
-                        && stn == d.right && GetTypeName(d.left) == type.Name.name
+                        && stn == d.right && GetTypeName(d.left, global, foundUnit) == type.Name.name
                     || stn.end_line() <= def.Pos.end_line
                     || in_derived_cond(stn)
                     || stn.Parent is method_name mn && mn?.class_name?.name == type.Name.name);
             }
             else
                 cond.AddLast(stn => !(stn.Parent is dot_node d) || stn == d.left
-                    || IsUnitName((d.left as ident)?.name));
+                    || (d.left as ident)?.name == foundUnit);
 
             var conds = localDefs.Select(ss => LocalDefCond(ss))
                 .Concat(cond)
@@ -280,28 +368,36 @@ namespace CodeCompletion
                     GotoIdentByLocation(name, line, col, n);
         }
 
-        private string GetTypeName(syntax_tree_node st)
+        private string GetTypeName(syntax_tree_node st, ScopeSyntax cur_sc, string unitName)
         {
             ident id;
             string tn = null;
             if (st is dot_node dn)
             {
-                tn = GetTypeName(dn?.left);
-                if (tn == null)
-                    return null;
+                if ((dn?.left as ident)?.name != unitName || unitName == null)
+                {
+                    var l = dn?.left;
+                    tn = GetTypeName(l, cur_sc, unitName);
+                    if (tn == null)
+                        return null;
 
-                if (dn?.left == null)
-                    return tn;
-                else
-                    id = dn?.right as ident;
+                    if (l == null)
+                        return tn;
+                }
+                id = dn?.right as ident;
             }
             else
                 id = st as ident;
             if (id == null)
                 return null;
 
-            var d = FindDef(id.line(), id.name, tn == null ? global
-                : global.Children.Find(s => s is NamedScopeSyntax ns && ns.Name.name == tn));
+            var d = FindDef(id.line(), id.name, tn == null ? cur_sc
+                : cur_sc.Children.Find(s => s is NamedScopeSyntax ns && ns.Name.name == tn));
+            if (d == null)
+                if (foundUnit != null)
+                    d = global;
+                else
+                    return null;
             var td = d.Symbols.Find(s => s.Id.name == id.name).Td;
             if (td != null)
             {
@@ -314,7 +410,7 @@ namespace CodeCompletion
             var pos = d.Symbols.Find(s => s.Id.name == id.name).Pos;
             GotoIdentByLocation(id.name, pos.line, pos.column, cu);
             return GetTypeName((current?.Parent?.Parent as var_def_statement)
-                ?.inital_value);
+                ?.inital_value, cur_sc, unitName);
         }
 
         public void FindPositions(string name, int line, int col, syntax_tree_node stn)
