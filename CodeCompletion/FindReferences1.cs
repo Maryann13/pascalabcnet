@@ -139,15 +139,20 @@ namespace CodeCompletion
             var cv = CollectLightSymInfoVisitor.New;
             cv.ProcessNode(cu);
 
+            ScopeSyntax d = null;
             var dn = expr as dot_node;
             if (dn != null)
             {
                 GotoIdentByLocation(name, line, column, this.cu);
-                return FindDef(current, name, cv.Root, unitName);
+                d = FindDef(current, name, cv.Root, unitName);
             }
             else if (cv.Root.Symbols.Exists(s => s.Id.name == name))
-                return cv.Root;
-            return null;
+                d = cv.Root;
+
+            if (d is TypeScopeSyntax && !(d.Symbols.Find(s => s.Id.name == name)
+                    .Attr.HasFlag(Attributes.public_attr)))
+                d = null;
+            return d;
         }
 
         private void FindLocalDefs(int line, int end_line, ScopeSyntax cur_sc)
@@ -386,6 +391,13 @@ namespace CodeCompletion
                 }
                 id = dn?.right as ident;
             }
+            else if (st is new_expr ne)
+            {
+                var tnames = (ne.type as named_type_reference)?.names;
+                string tname = tnames.Count > 0 ? tnames[0]?.name
+                    .Replace("PascalABCCompiler.SyntaxTree.", "") : null;
+                return GetTypeSynonymDefName(tname, cur_sc);
+            }
             else
                 id = st as ident;
             if (id == null)
@@ -404,13 +416,30 @@ namespace CodeCompletion
                 string type_name = td.Parent is type_declaration tdecl ?
                     tdecl.type_name.name :
                     td.ToString();
-                return type_name.Replace("PascalABCCompiler.SyntaxTree.", "");
+                type_name = type_name.Replace("PascalABCCompiler.SyntaxTree.", "");
+                return GetTypeSynonymDefName(type_name, cur_sc);
             }
 
             var pos = d.Symbols.Find(s => s.Id.name == id.name).Pos;
             GotoIdentByLocation(id.name, pos.line, pos.column, cu);
             return GetTypeName((current?.Parent?.Parent as var_def_statement)
                 ?.inital_value, cur_sc, unitName);
+        }
+
+        private string GetTypeSynonymDefName(string type_name, ScopeSyntax cur_sc)
+        {
+            if (type_name != null)
+                while (cur_sc.Children.Exists(s =>
+                    (s as TypeSynonymScopeSyntax)?.Name?.name == type_name))
+                {
+                    var tdef_names = (cur_sc.Symbols.FirstOrDefault(s =>
+                        s.Id.name == type_name)?.Td as named_type_reference)?.names;
+                    if (tdef_names != null && tdef_names.Count > 0)
+                        type_name = tdef_names[0].name;
+                    else
+                        break;
+                }
+            return type_name;
         }
 
         public void FindPositions(string name, int line, int col, syntax_tree_node stn)

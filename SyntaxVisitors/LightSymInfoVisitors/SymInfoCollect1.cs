@@ -49,7 +49,10 @@ namespace PascalABCCompiler.SyntaxTree
                             pa.attribute_type == proc_attribute.attr_override) ?? false ?
                         Attributes.override_attr : 0;
                     if (ph.class_keyword)
-                        attr &= Attributes.class_attr;
+                        attr |= Attributes.class_attr;
+                    if ((ph.Parent as class_members)?.access_mod?.access_level
+                            == access_modifer.public_modifer)
+                        attr |= Attributes.public_attr;
                     var sk = ph is function_header ?
                         SymKind.funcname : SymKind.procname;
                     if (name != null)
@@ -135,6 +138,15 @@ namespace PascalABCCompiler.SyntaxTree
                         t.Symbols.Add(sself);
                     }                        
                     break;
+                case type_declaration tdecl when !(tdecl.type_def is class_definition):
+                    t = new TypeSynonymScopeSyntax(tdecl.type_name, tdecl.position());
+                    var q = (tdecl?.type_name as template_type_name)?.template_args
+                        ?.idents?.Select(x =>
+                            new SymInfoSyntax(x, SymKind.templatename, x.position()));
+                    if (q != null)
+                        t.Symbols.AddRange(q);
+                    AddSymbol(tdecl.type_name, SymKind.typesynonym, tdecl?.type_def);
+                    break;
                 case function_lambda_definition p:
                     t = new LambdaScopeSyntax(st.position());
                     break;
@@ -180,6 +192,8 @@ namespace PascalABCCompiler.SyntaxTree
                 case with_statement ws:
                 case lock_stmt ls:
                 case class_definition cd:
+                case type_declaration tdecl
+                    when !(tdecl.type_def is class_definition):
                 case enum_type_definition e:
                 //case record_type rt:
                 case function_lambda_definition fld:
@@ -192,10 +206,13 @@ namespace PascalABCCompiler.SyntaxTree
         public override void visit(var_def_statement vd)
         {
             var attr = vd.var_attr == definition_attribute.Static ? Attributes.class_attr : 0;
+            if ((vd.Parent as class_members)?.access_mod?.access_level
+                    == access_modifer.public_modifer)
+                attr |= Attributes.public_attr;
             if (vd == null || vd.vars == null || vd.vars.list == null)
                 return;
             var type = vd.vars_type;
-            var sk = Current is ClassScopeSyntax ? SymKind.field : SymKind.var;
+            var sk = Current is TypeScopeSyntax ? SymKind.field : SymKind.var;
             var q = vd.vars.list.Select(x => new SymInfoSyntax(x, sk, x.position(), type, attr));
             if (q.Count() > 0)
                 Current.Symbols.AddRange(q);

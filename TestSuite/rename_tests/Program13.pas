@@ -66,6 +66,9 @@ begin
   var a1: Person1 := Foo1();
   var a2: Person1 := Foo1();
   var a1: Person2 := Foo1(5);
+  var aa := new Person1(' ', 1);
+  var bb := aa.a1;
+  var cc := (new Person1(' ', 1)).a1;
   var d := a1;
   for var i := 0 to 5 do
   begin
@@ -73,7 +76,8 @@ begin
     a2.a1.a1.Print2();
     a1.a1.a1.Print2();
     a1.a1.Print2();
-    var e := B.Person3.b1;
+    var e := A.a3;
+    B.Person3.Print22();
   end;
   var c := d.Name;
 end.

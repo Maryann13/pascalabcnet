@@ -19,10 +19,10 @@ using PascalABCCompiler.Parsers;
 namespace PascalABCCompiler.SyntaxTree
 {
     public enum SymKind { var, constant, field, param, procname, funcname, classname, recordname, interfacename,
-                          unitname, templatename, property, enumname, enumerator};
+                          unitname, templatename, property, enumname, enumerator, typesynonym};
 
     [Flags]
-    public enum Attributes { class_attr = 1, varparam_attr = 2, override_attr = 4 };
+    public enum Attributes { class_attr = 1, varparam_attr = 2, override_attr = 4, public_attr = 8 };
 
     public class SymInfoSyntax
     {
@@ -51,7 +51,7 @@ namespace PascalABCCompiler.SyntaxTree
         }
         public void AddAttribute(Attributes attr)
         {
-            Attr &= attr;
+            Attr |= attr;
         }
     }
 
@@ -109,6 +109,10 @@ namespace PascalABCCompiler.SyntaxTree
     public class EnumScopeSyntax : TypeScopeSyntax
     {
         public EnumScopeSyntax(ident Name, Position Pos) : base(Name, Pos) { }
+    }
+    public class TypeSynonymScopeSyntax : TypeScopeSyntax
+    {
+        public TypeSynonymScopeSyntax(ident Name, Position Pos) : base(Name, Pos) { }
     }
     public class LightScopeSyntax : ScopeSyntax // предок всех легковесных
     {
