@@ -90,5 +90,15 @@ namespace PascalABCCompiler.SyntaxTree
         public static int end_column(this syntax_tree_node stn) =>
             stn?.source_context?.end_position?.column_num ?? 0;
     }
+
+    public static class HashSetExt
+    {
+        public static void AddRange<TSource>
+            (this HashSet<TSource> source, IEnumerable<TSource> collection)
+        {
+            foreach (var e in collection)
+                source.Add(e);
+        }
+    }
 }
 

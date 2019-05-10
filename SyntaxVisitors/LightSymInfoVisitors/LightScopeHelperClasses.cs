@@ -59,8 +59,8 @@ namespace PascalABCCompiler.SyntaxTree
     {
         public ScopeSyntax Parent { get; set; }
         public Position Pos { get; set; }
-        public List<ScopeSyntax> Children = new List<ScopeSyntax>();
-        public List<SymInfoSyntax> Symbols = new List<SymInfoSyntax>();
+        public HashSet<ScopeSyntax> Children = new HashSet<ScopeSyntax>();
+        public HashSet<SymInfoSyntax> Symbols = new HashSet<SymInfoSyntax>();
         public ScopeSyntax(Position Pos) => this.Pos = Pos;
         public override string ToString() => GetType().Name.Replace("Syntax", "");
     }

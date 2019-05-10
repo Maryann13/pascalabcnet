@@ -16,7 +16,7 @@ namespace CodeCompletion
         private ScopeSyntax global;
         private compilation_unit cu;
         private ScopeSyntax def;
-        private LinkedList<ScopeSyntax> localDefs = new LinkedList<ScopeSyntax>();
+        private HashSet<ScopeSyntax> localDefs = new HashSet<ScopeSyntax>();
         private Predicate<syntax_tree_node> Cond;
         private syntax_tree_node current;
         private string foundUnit = null;
@@ -50,7 +50,7 @@ namespace CodeCompletion
                 while (leftmost is dot_node dn)
                     leftmost = dn.left;
                 string lm_name = (leftmost as ident)?.name;
-                if (unitName == null && global.Symbols.Exists(s => s.SK == SymKind.unitname
+                if (unitName == null && global.Symbols.Any(s => s.SK == SymKind.unitname
                         && s.Id.name == lm_name))
                 {
                     var d = FindDefInUnit(lm_name);
@@ -71,7 +71,7 @@ namespace CodeCompletion
         }
 
         private bool IsUnitName(string name)
-            => name != null && global.Symbols.Exists(s =>
+            => name != null && global.Symbols.Any(s =>
                 s.SK == SymKind.unitname && s.Id.name == name);
 
         private ScopeSyntax FindDef(int line, string name, ScopeSyntax cur_sc)
@@ -89,7 +89,7 @@ namespace CodeCompletion
 
             var def_base_type = cur_sc is TypeScopeSyntax ?
                 FindDefBaseType(name, cur_sc) : null;
-            return def_base_type ?? (cur_sc.Symbols.Exists(s => s.Id.name == name) ? cur_sc : null);
+            return def_base_type ?? (cur_sc.Symbols.Any(s => s.Id.name == name) ? cur_sc : null);
         }
 
         private ScopeSyntax FindDef(ScopeSyntax cur_sc)
@@ -115,8 +115,8 @@ namespace CodeCompletion
                 {
                     found_sc = global.Children.FirstOrDefault(s => s is TypeScopeSyntax ts
                         && ((((found_sc as TypeScopeSyntax).Name.Parent as type_declaration)
-                            ?.type_def as class_definition)?.class_parents?.types?.Exists(c =>
-                                c.names.Exists(n => n.name == ts.Name.name)) ?? false));
+                            ?.type_def as class_definition)?.class_parents?.types?.Any(c =>
+                                c.names.Any(n => n.name == ts.Name.name)) ?? false));
                     if (found_sc == null)
                         break;
                     sdef = found_sc.Symbols.FirstOrDefault(s => s.Id.name == name);
@@ -146,10 +146,10 @@ namespace CodeCompletion
                 GotoIdentByLocation(name, line, column, this.cu);
                 d = FindDef(current, name, cv.Root, unitName);
             }
-            else if (cv.Root.Symbols.Exists(s => s.Id.name == name))
+            else if (cv.Root.Symbols.Any(s => s.Id.name == name))
                 d = cv.Root;
 
-            if (d is TypeScopeSyntax && !(d.Symbols.Find(s => s.Id.name == name)
+            if (d is TypeScopeSyntax && !(d.Symbols.First(s => s.Id.name == name)
                     .Attr.HasFlag(Attributes.public_attr)))
                 d = null;
             return d;
@@ -157,9 +157,9 @@ namespace CodeCompletion
 
         private void FindLocalDefs(int line, int end_line, ScopeSyntax cur_sc)
         {
-            if (cur_sc.Symbols.Exists(s => s.Id.name == name)
+            if (cur_sc.Symbols.Any(s => s.Id.name == name)
                     && !(cur_sc is EnumScopeSyntax))
-                localDefs.AddLast(cur_sc);
+                localDefs.Add(cur_sc);
 
             var ss = cur_sc.Children.Where(s => s.Pos.line >= line && s.Pos.end_line <= end_line);
             foreach (var s in ss)
@@ -170,13 +170,13 @@ namespace CodeCompletion
         {
             if (d is GlobalScopeSyntax)
             {
-                global.Symbols.Add(d.Symbols.Find(s => s.Id.name == name));
+                global.Symbols.Add(d.Symbols.First(s => s.Id.name == name));
                 def = global;
             }
             else if (d is TypeScopeSyntax ts)
             {
                 global.Children.Add(d);
-                global.Symbols.Add(d.Parent.Symbols.Find(s => s.Id.name == ts.Name.name));
+                global.Symbols.Add(d.Parent.Symbols.First(s => s.Id.name == ts.Name.name));
                 d.Parent = global;
                 def = d;
             }
@@ -198,7 +198,7 @@ namespace CodeCompletion
 
             if (def == null)
                 foreach (var e in global.Children.Where(s => s is EnumScopeSyntax))
-                    if (e.Symbols.Exists(s => s.Id.name == name))
+                    if (e.Symbols.Any(s => s.Id.name == name))
                     {
                         def = e;
                         break;
@@ -219,8 +219,8 @@ namespace CodeCompletion
             if (def == null)
                 return;
 
-            var defs = def.Symbols.FindAll(s => s.Id.name == name);
-            var conflict_defs = defs.Count > 1 ?
+            var defs = def.Symbols.Where(s => s.Id.name == name);
+            var conflict_defs = defs.Count() > 1 ?
                 defs.Skip(1).Where(d => d.SK != SymKind.funcname && d.SK != SymKind.procname) :
                 new List<SymInfoSyntax>();
 
@@ -244,15 +244,15 @@ namespace CodeCompletion
                 end_ln = def.Parent.Pos.end_line;
                 end_col = def.Parent.Pos.end_column;
                 FindLocalDefs(ln, def.Pos.end_line, def.Parent);
+                localDefs.Remove(def.Parent);
             }
             else
             {
                 end_ln = def.Pos.end_line;
                 end_col = def.Pos.end_column;
                 FindLocalDefs(ln, end_ln, def);
+                localDefs.Remove(def);
             }
-            if (localDefs.Count > 0)
-                localDefs.RemoveFirst();
             localDefs.Remove(localDefs.FirstOrDefault(s => s is NamedScopeSyntax ns
                 && ns?.Name.name == (def as NamedScopeSyntax)?.Name.name));
 
@@ -299,9 +299,9 @@ namespace CodeCompletion
                     foreach (var sc in scopes)
                         derived_types.AddRange(global.Children.Where(s => s is TypeScopeSyntax ts
                                 && (((ts.Name.Parent as type_declaration)?.type_def as class_definition)
-                                    ?.class_parents?.types?.Exists(c =>
-                                        c.names.Exists(n => n.name == sc.Name.name)
-                                && !s.Symbols.Exists(sym => sym.Id.name == name
+                                    ?.class_parents?.types?.Any(c =>
+                                        c.names.Any(n => n.name == sc.Name.name)
+                                && !s.Symbols.Any(sym => sym.Id.name == name
                                     && !sym.Attr.HasFlag(Attributes.override_attr))) ?? false))
                             .Select(s => s as TypeScopeSyntax));
 
@@ -323,7 +323,7 @@ namespace CodeCompletion
             var cur = def;
             while (cur != null && !(cur is TypeScopeSyntax))
             {
-                if (cur.Symbols.Exists(s => s.Id.name == new_val))
+                if (cur.Symbols.Any(s => s.Id.name == new_val))
                 {
                     string sc_str = cur == def ? "В данной" : "Во включающей";
                     MessageBox.Show($"{sc_str} области локальной видимости уже содержится " +
@@ -404,13 +404,13 @@ namespace CodeCompletion
                 return null;
 
             var d = FindDef(id.line(), id.name, tn == null ? cur_sc
-                : cur_sc.Children.Find(s => s is NamedScopeSyntax ns && ns.Name.name == tn));
+                : cur_sc.Children.First(s => s is NamedScopeSyntax ns && ns.Name.name == tn));
             if (d == null)
                 if (foundUnit != null)
                     d = global;
                 else
                     return null;
-            var td = d.Symbols.Find(s => s.Id.name == id.name).Td;
+            var td = d.Symbols.First(s => s.Id.name == id.name).Td;
             if (td != null)
             {
                 string type_name = td.Parent is type_declaration tdecl ?
@@ -420,7 +420,7 @@ namespace CodeCompletion
                 return GetTypeSynonymDefName(type_name, cur_sc);
             }
 
-            var pos = d.Symbols.Find(s => s.Id.name == id.name).Pos;
+            var pos = d.Symbols.First(s => s.Id.name == id.name).Pos;
             GotoIdentByLocation(id.name, pos.line, pos.column, cu);
             return GetTypeName((current?.Parent?.Parent as var_def_statement)
                 ?.inital_value, cur_sc, unitName);
@@ -429,7 +429,7 @@ namespace CodeCompletion
         private string GetTypeSynonymDefName(string type_name, ScopeSyntax cur_sc)
         {
             if (type_name != null)
-                while (cur_sc.Children.Exists(s =>
+                while (cur_sc.Children.Any(s =>
                     (s as TypeSynonymScopeSyntax)?.Name?.name == type_name))
                 {
                     var tdef_names = (cur_sc.Symbols.FirstOrDefault(s =>
