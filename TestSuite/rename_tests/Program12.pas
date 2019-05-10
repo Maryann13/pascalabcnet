@@ -8,8 +8,8 @@ Person2 = class
 
 type
   Predicate<T> = array of T;
-  ProcI<T> = procedure (i: T);
   P<T> = Predicate<T>;
+  ProcI1<T> = procedure (i: T);
   Pr = Person2;
 
 function FindAll<T>(a: array of T; pred: Predicate<T>): array of T;

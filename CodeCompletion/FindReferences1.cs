@@ -277,7 +277,7 @@ namespace CodeCompletion
             }
             else
                 cond.AddLast(stn => !(stn.Parent is dot_node d) || stn == d.left
-                    || (d.left as ident)?.name == foundUnit);
+                    || (d.left as ident)?.name == foundUnit && foundUnit != null);
 
             var conds = localDefs.Select(ss => LocalDefCond(ss))
                 .Concat(cond)

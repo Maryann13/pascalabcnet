@@ -19,7 +19,7 @@ namespace CodeCompletion
             {
                 var testsuite_fname = Path.ChangeExtension(FileName, ".txt");
                 if (!File.Exists(testsuite_fname))
-                    break;
+                    continue;
                 var testSuit = File.ReadAllText(testsuite_fname)
                     .Split(';').Select(ts =>
                         ts.Split(new char[] { '\n' }, StringSplitOptions.RemoveEmptyEntries))
