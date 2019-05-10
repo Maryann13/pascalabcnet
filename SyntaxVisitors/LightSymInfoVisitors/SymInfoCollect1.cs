@@ -60,11 +60,27 @@ namespace PascalABCCompiler.SyntaxTree
                 if (name != null)
                     AddSymbol(name, sk, null, attr);
 
+                ScopeSyntax t;
                 if (st is procedure_definition pdef)
-                    return new ProcScopeSyntax(name, st.position(),
+                    t = new ProcScopeSyntax(name, st.position(),
                         pdef?.proc_header.name?.class_name);
                 else
-                    return null;
+                    t = null;
+
+                if (ph is function_header fh)
+                {
+                    var nres = new ident("Result");
+                    t.Symbols.Add(new SymInfoSyntax(nres, SymKind.var, nres.position(), fh.return_type));
+                }
+                if (st is procedure_definition pd)
+                {
+                    var ta = pd.proc_header?.template_args;
+                    var q = ta?.idents?.Select(x =>
+                        new SymInfoSyntax(x, SymKind.templatename, x.position()));
+                    if (q != null)
+                        t.Symbols.AddRange(q);
+                }
+                return t;
             },
                 ExitScopeSyntax));
             EnterExitActions.Add(typeof(procedure_header), new EnterExitAction(st =>
@@ -94,9 +110,14 @@ namespace PascalABCCompiler.SyntaxTree
                 AddSymbol((st as simple_property).property_name?.name, SymKind.property);
                 return null;
             }));
-            EnterExitActions.Add(typeof(const_definition), new EnterExitAction(st =>
+            EnterExitActions.Add(typeof(simple_const_definition), new EnterExitAction(st =>
             {
-                AddSymbol((st as const_definition).const_name?.name, SymKind.constant);
+                AddSymbol((st as simple_const_definition).const_name?.name, SymKind.constant);
+                return null;
+            }));
+            EnterExitActions.Add(typeof(typed_const_definition), new EnterExitAction(st =>
+            {
+                AddSymbol((st as typed_const_definition).const_name?.name, SymKind.constant);
                 return null;
             }));
             EnterExitActions.Add(typeof(statement_list), new EnterExitAction(st =>
@@ -170,6 +191,14 @@ namespace PascalABCCompiler.SyntaxTree
                     t = new InterfaceScopeSyntax(tname, td.position());
                     t.Symbols.Add(sself);
                 }
+
+                var ta = ((st.Parent as type_declaration)?.type_name as template_type_name)
+                    ?.template_args;
+                var q = ta?.idents?.Select(x =>
+                    new SymInfoSyntax(x, SymKind.templatename, x.position()));
+                if (q != null)
+                    t.Symbols.AddRange(q);
+
                 return t;
             },
                 ExitScopeSyntax));
@@ -213,23 +242,6 @@ namespace PascalABCCompiler.SyntaxTree
                 if (Current != null)
                     Current.Children.Add(t);
                 Current = t;
-                if (st is procedure_definition p)
-                {
-                    if (p.proc_header is function_header fh)
-                    {
-                        AddSymbol(new ident("Result"), SymKind.var, fh.return_type);
-                    }
-                }
-                if (st is procedure_definition || st is class_definition)
-                {
-                    var ta = st is procedure_definition pd ? pd.proc_header?.template_args
-                        : ((st.Parent as type_declaration)
-                            ?.type_name as template_type_name)?.template_args;
-                    var q = ta?.idents?.Select(x =>
-                        new SymInfoSyntax(x, SymKind.templatename, x.position()));
-                    if (q != null)
-                        Current.Symbols.AddRange(q);
-                }
             }
         }
 
